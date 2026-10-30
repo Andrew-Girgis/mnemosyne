@@ -1,0 +1,21 @@
+# Phosphor: green CRT on near-black (the reference mockups).
+name = "phosphor"
+dark = true
+
+[colors]
+background = "#030805"
+surface = "#050d08"
+panel = "#07120b"
+foreground = "#b8f5cc"
+muted = "#5e9a74"
+faint = "#1b4d31"
+accent = "#39ff88"
+selection = "#0c2a19"
+warning = "#f5c542"
+error = "#ff5f5f"
+success = "#39ff88"
+
+[workspaces]
+personal = "#39e58c"
+work = "#4fc3ff"
+fallback = "#5e9a74"

@@ -1,0 +1,21 @@
+# Amber: warm monochrome CRT.
+name = "amber"
+dark = true
+
+[colors]
+background = "#0b0702"
+surface = "#110b03"
+panel = "#161005"
+foreground = "#ffd9a0"
+muted = "#a67c3d"
+faint = "#4a3514"
+accent = "#ffb000"
+selection = "#2b1d08"
+warning = "#ffe066"
+error = "#ff6a4d"
+success = "#c8e06a"
+
+[workspaces]
+personal = "#ffb000"
+work = "#f2e2b8"
+fallback = "#a67c3d"

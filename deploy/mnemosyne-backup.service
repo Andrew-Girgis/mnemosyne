@@ -1,0 +1,7 @@
+[Unit]
+Description=Mnemosyne + Wakapi database snapshots
+After=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=%h/Projects/mnemosyne/bin/backup

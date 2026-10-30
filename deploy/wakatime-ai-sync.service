@@ -1,0 +1,8 @@
+[Unit]
+Description=Send AI agent activity (Claude Code, Codex, pi, …) to Wakapi
+
+[Service]
+Type=oneshot
+ExecStart=%h/.wakatime/wakatime-cli --sync-ai-activity
+Nice=10
+TimeoutStartSec=5min

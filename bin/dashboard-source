@@ -1,0 +1,46 @@
+#!/usr/bin/env bash
+# Switch dashboard token accounting, preserving the same image, data and tracking.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+case "${1:-}" in ledger|heartbeats) mode=$1 ;; *) echo 'usage: bin/dashboard-source ledger|heartbeats' >&2; exit 2 ;; esac
+file=deploy/token-dashboard-source
+old=heartbeats
+if [[ -f "$file" ]]; then read -r old < "$file"; fi
+case "$old" in ledger|heartbeats) ;; *) echo 'invalid existing dashboard source; review before replacing' >&2; exit 2 ;; esac
+write_mode() {
+  local tmp
+  tmp=$(mktemp "${file}.XXXXXX")
+  printf '%s\n' "$1" > "$tmp"
+  chmod 644 "$tmp"
+  mv "$tmp" "$file"
+}
+verify_mode() {
+  local ready=false
+  for _ in $(seq 1 45); do
+    if [[ "$(docker inspect -f '{{.State.Health.Status}}' mnemosyne-wakapi-1 2>/dev/null)" == healthy ]]; then ready=true; break; fi
+    sleep 1
+  done
+  [[ "$ready" == true ]] || return 1
+  python3 - "$mode" <<'PY'
+import base64,configparser,json,pathlib,sys,urllib.request
+class NoRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self,*args,**kwargs): return None
+config=configparser.ConfigParser(interpolation=None)
+assert config.read(pathlib.Path.home()/'.wakatime.cfg'), 'protected tracking config unavailable'
+key=config.get('settings','api_key')
+request=urllib.request.Request('http://127.0.0.1:3100/api/dashboard/overview?days=1',headers={'Authorization':'Basic '+base64.b64encode(key.encode()).decode()})
+with urllib.request.build_opener(NoRedirect()).open(request,timeout=30) as response:
+    result=json.load(response)
+assert result.get('token_source')==sys.argv[1], 'accounting selection did not take effect'
+PY
+}
+write_mode "$mode"
+# Ensure an inherited shell override cannot disagree with the persisted selection.
+if WAKAPI_DASHBOARD_TOKEN_SOURCE="$mode" bin/compose up -d --no-build --no-deps wakapi && verify_mode; then
+  echo "dashboard accounting: $mode (healthy, authenticated mode verified; same image/database)"
+else
+  write_mode "$old"
+  WAKAPI_DASHBOARD_TOKEN_SOURCE="$old" bin/compose up -d --no-build --no-deps wakapi || true
+  echo 'switch failed; previous accounting selection restored' >&2
+  exit 1
+fi

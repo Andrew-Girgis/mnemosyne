@@ -1,0 +1,44 @@
+#!/usr/bin/env bash
+# Consistent snapshots of Mnemosyne's and Wakapi's SQLite databases, taken while both run.
+# Layout: $MNEMOSYNE_BACKUP_DIR/{daily/YYYY-MM-DD,weekly/YYYY-Www,latest}/{mnemosyne,wakapi}.sqlite3.gz
+# Retention: 14 daily + 8 weekly. `latest/` is what gets copied to the Mac (capped at 1 GB).
+set -euo pipefail
+cd "$(dirname "$0")/.."
+DEST="${MNEMOSYNE_BACKUP_DIR:-$HOME/.local/share/mnemosyne/backups}"
+DAY="$(date +%F)"; WEEK="$(date +%G-W%V)"
+LATEST_CAP_BYTES=$((1024 * 1024 * 1024))
+umask 077
+mkdir -p "$DEST/daily/$DAY" "$DEST/weekly" "$DEST/latest"
+chmod 700 "$DEST"
+
+snapshot() {  # volume, db file inside it, output name
+  docker run --rm -v "mnemosyne_$1:/src" -v "$DEST/daily/$DAY:/out" python:3.13-slim python -c "
+import gzip, os, shutil, sqlite3
+src = sqlite3.connect('file:/src/$2?mode=ro', uri=True)
+dst = sqlite3.connect('/tmp/snap.sqlite3')
+src.backup(dst); dst.close(); src.close()
+check = sqlite3.connect('/tmp/snap.sqlite3').execute('PRAGMA integrity_check').fetchone()[0]
+assert check == 'ok', check
+with open('/tmp/snap.sqlite3', 'rb') as f, gzip.open('/out/$3.sqlite3.gz', 'wb', 6) as g:
+    shutil.copyfileobj(f, g)
+os.chown('/out/$3.sqlite3.gz', $(id -u), $(id -g)); os.chmod('/out/$3.sqlite3.gz', 0o600)
+"
+}
+snapshot mnemosyne-data mnemosyne.sqlite3 mnemosyne
+snapshot wakapi-data wakapi.db wakapi
+
+# Weekly copy on Sundays (or if this week has none yet).
+if [ "$(date +%u)" = 7 ] || [ ! -d "$DEST/weekly/$WEEK" ]; then
+  rm -rf "$DEST/weekly/$WEEK"; cp -r "$DEST/daily/$DAY" "$DEST/weekly/$WEEK"
+fi
+ls -1d "$DEST"/daily/*/ | head -n -14 | xargs -r rm -rf
+ls -1d "$DEST"/weekly/*/ | head -n -8 | xargs -r rm -rf
+
+size=$(du -cb "$DEST/daily/$DAY"/* | tail -1 | cut -f1)
+if [ "$size" -le "$LATEST_CAP_BYTES" ]; then
+  rm -f "$DEST/latest"/*.gz; cp "$DEST/daily/$DAY"/*.gz "$DEST/latest/"
+  echo "$DAY" > "$DEST/latest/SNAPSHOT_DATE"
+else
+  echo "WARNING: snapshot is $size bytes, over the 1 GB cap for the Mac copy; latest/ not updated" >&2
+fi
+echo "backup ok: $DEST/daily/$DAY ($size bytes)"

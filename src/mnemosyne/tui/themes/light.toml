@@ -1,0 +1,21 @@
+# Light, after Claude Code's light theme: ivory paper, darker orange accent for contrast.
+name = "light"
+dark = false
+
+[colors]
+background = "#faf9f5"
+surface = "#f3f1ea"
+panel = "#ffffff"
+foreground = "#1f1e1d"
+muted = "#666666"
+faint = "#d4d1c6"
+accent = "#c15f3c"
+selection = "#f6e4da"
+warning = "#966c1e"
+error = "#ab2b3f"
+success = "#2c7a39"
+
+[workspaces]
+personal = "#1f7a6d"
+work = "#4b5ee0"
+fallback = "#666666"

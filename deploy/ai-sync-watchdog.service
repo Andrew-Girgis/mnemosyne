@@ -1,0 +1,8 @@
+[Unit]
+Description=Check that the WakaTime AI sync keeps up with agent transcripts
+After=wakatime-ai-sync.service
+
+[Service]
+Type=oneshot
+ExecStart=%h/Projects/mnemosyne/bin/ai-sync-watchdog
+Nice=10

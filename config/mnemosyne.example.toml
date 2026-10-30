@@ -1,0 +1,40 @@
+# Mnemosyne server config (lives on the server, mounted read-only into the server container).
+# Copy to config/mnemosyne.toml and describe your own devices and folders.
+# Paths starting with '~' are expanded per device using that device's `home`.
+timezone = "America/Toronto"                # IANA name; days and summaries use it
+seed_active_days = 14                       # new projects with activity this recent start Active
+task_columns = ["Inbox", "Active", "Paused", "Done"]
+
+# One table per machine. `machine_names` are the hostnames WakaTime clients report;
+# list every variant (e.g. "laptop", "laptop.local") so heartbeats map to the device.
+[devices.desktop]
+os = "linux"
+home = "/home/alice"
+machine_names = ["desktop"]
+
+[devices.laptop]
+os = "macos"
+home = "/Users/alice"
+machine_names = ["laptop", "laptop.local"]
+
+# A workspace is a folder of projects. Every directory directly under `base` and under
+# `try_root` (scratch projects, e.g. from the `try` tool) is a project.
+[workspaces.personal]
+base = "~/Projects"
+try_root = "~/Projects/tries"
+# mirror_root = "~/.local/share/try-git/personal"   # optional bare Git mirrors to scan for commits
+
+# [workspaces.work]
+# base = "~/Work"
+# try_root = "~/Work/tries"
+
+# Optional: an old Try root on one device, kept only so old heartbeats still map to projects.
+# [[legacy_roots]]
+# device = "laptop"
+# path = "~/src/tries"
+
+[wakapi]
+base_url = "http://wakapi:3000"             # compose-internal address
+poll_seconds = 300
+history_start = "2013-01-01"               # first day the initial import reads
+# API key comes from MNEMOSYNE_WAKAPI_API_KEY (injected by `s` or the environment), never this file.

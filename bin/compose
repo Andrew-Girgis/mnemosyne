@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+# docker compose with this stack's secrets injected from s (only keys that exist yet).
+# Without s, export WAKAPI_PASSWORD_SALT and MNEMOSYNE_WAKAPI_API_KEY yourself.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+# Non-secret local settings (public URL, Wakapi build context); see deploy/local.env.example.
+if [[ -f deploy/local.env ]]; then
+  set -a
+  # shellcheck source=/dev/null
+  source deploy/local.env
+  set +a
+fi
+# Non-secret, persistent token-display selection; no .env credentials/configuration.
+if [[ -z "${WAKAPI_DASHBOARD_TOKEN_SOURCE:-}" && -f deploy/token-dashboard-source ]]; then
+  read -r WAKAPI_DASHBOARD_TOKEN_SOURCE < deploy/token-dashboard-source
+  export WAKAPI_DASHBOARD_TOKEN_SOURCE
+fi
+case "${WAKAPI_DASHBOARD_TOKEN_SOURCE:-heartbeats}" in
+  ledger|heartbeats) ;;
+  *) echo 'invalid token-dashboard-source (expected ledger or heartbeats)' >&2; exit 2 ;;
+esac
+if ! command -v s >/dev/null; then
+  exec docker compose "$@"
+fi
+keys=()
+for key in WAKAPI_PASSWORD_SALT MNEMOSYNE_WAKAPI_API_KEY; do
+  if s list 2>/dev/null | grep -q "^ *$key "; then keys+=("$key"); fi
+done
+exec s "${keys[@]}" -- docker compose "$@"

@@ -1,0 +1,48 @@
+#!/usr/bin/env bash
+# Detect a stalled WakaTime AI sync: agent transcripts keep changing, but wakatime-cli's AI parse
+# cutoff (ai_logs_last_parsed_at) stops moving. Seen after the 2026-10-23/24 outage: the timer kept
+# exiting 0 while no heartbeats were sent until one manual run.
+# First stale check: start one wakatime-ai-sync.service run (serialised with the timer).
+# Still stale on the next check: desktop notification + journal error. Never edits wakatime-cli files.
+set -euo pipefail
+CFG="${WAKATIME_INTERNAL_CFG:-$HOME/.wakatime/wakatime-internal.cfg}"
+STATE="${XDG_STATE_HOME:-$HOME/.local/state}/ai-sync-watchdog"
+LAG_MIN="${AI_SYNC_WATCHDOG_LAG_MIN:-60}"
+TRANSCRIPTS=("$HOME/.claude/projects" "$HOME/.codex/sessions")
+mkdir -p -m 700 "$STATE"
+
+parsed=$(sed -n 's/^ai_logs_last_parsed_at *= *//p' "$CFG" 2>/dev/null | head -1)
+if [ -z "$parsed" ]; then
+  echo "ai-sync-watchdog: no ai_logs_last_parsed_at in $CFG yet" >&2
+  exit 0
+fi
+parsed_s=$(date -d "$parsed" +%s)
+threshold_s=$((parsed_s + LAG_MIN * 60))
+
+# Newest transcript write; transcripts newer than the parse cutoff + lag mean unsynced agent activity.
+newest_s=0
+for dir in "${TRANSCRIPTS[@]}"; do
+  [ -d "$dir" ] || continue
+  t=$(find "$dir" -name '*.jsonl' -type f -printf '%T@\n' 2>/dev/null | sort -n | tail -1 | cut -d. -f1)
+  [ -n "$t" ] && [ "$t" -gt "$newest_s" ] && newest_s=$t
+done
+
+strikes=$(cat "$STATE/strikes" 2>/dev/null || echo 0)
+if [ "$newest_s" -le "$threshold_s" ]; then
+  [ "$strikes" -gt 0 ] && echo "ai-sync-watchdog: recovered (parse cutoff $parsed)"
+  echo 0 > "$STATE/strikes"
+  exit 0
+fi
+
+lag_min=$(( (newest_s - parsed_s) / 60 ))
+strikes=$((strikes + 1))
+echo "$strikes" > "$STATE/strikes"
+if [ "$strikes" -eq 1 ]; then
+  echo "ai-sync-watchdog: transcripts are ${lag_min} min ahead of the AI parse cutoff ($parsed); starting one sync"
+  systemctl --user start wakatime-ai-sync.service || true
+  exit 0
+fi
+msg="WakaTime AI sync looks stalled: transcripts are ${lag_min} min ahead of the parse cutoff ($parsed). Check ~/.wakatime/wakatime.log and wakatime-internal.cfg (backoff_retries)."
+echo "ai-sync-watchdog: $msg" >&2
+command -v notify-send >/dev/null && notify-send -u critical -a Wakapi "AI sync stalled" "$msg" 2>/dev/null || true
+exit 1

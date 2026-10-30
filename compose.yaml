@@ -1,0 +1,51 @@
+# Server stack. Start it with bin/compose, which loads deploy/local.env (non-secret settings)
+# and injects WAKAPI_PASSWORD_SALT and MNEMOSYNE_WAKAPI_API_KEY from s or the environment.
+# Both ports bind to localhost only; publish them privately, e.g. with `tailscale serve`.
+name: mnemosyne
+
+services:
+  wakapi:
+    # Fork of muety/wakapi with ai_cached_input_tokens and other AI-field fixes, plus the
+    # dashboard the Token Usage widget reads. Set WAKAPI_BUILD_CONTEXT=../wakapi to build a
+    # local checkout instead of GitHub's master branch.
+    build: ${WAKAPI_BUILD_CONTEXT:-https://github.com/Andrew-Girgis/wakapi.git#master}
+    image: wakapi-fork:local
+    init: true
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3100:3000"
+    environment:
+      WAKAPI_PASSWORD_SALT: ${WAKAPI_PASSWORD_SALT:?inject with s}
+      WAKAPI_PUBLIC_URL: ${WAKAPI_PUBLIC_URL:-http://127.0.0.1:3100}
+      WAKAPI_INSECURE_COOKIES: "false"
+      # Open only while creating the single account: WAKAPI_ALLOW_SIGNUP=true s … up -d wakapi
+      WAKAPI_ALLOW_SIGNUP: ${WAKAPI_ALLOW_SIGNUP:-false}
+      WAKAPI_INVITE_CODES: "false"
+      WAKAPI_DISABLE_FRONTPAGE: "true"
+      WAKAPI_LEADERBOARD_ENABLED: "false"
+      WAKAPI_IMPORT_ENABLED: "true"
+      WAKAPI_DATA_RETENTION_MONTHS: "-1"
+      WAKAPI_MAX_INACTIVE_MONTHS: "-1"
+      # bin/compose reads the non-secret deploy/token-dashboard-source selection.
+      WAKAPI_DASHBOARD_TOKEN_SOURCE: ${WAKAPI_DASHBOARD_TOKEN_SOURCE:-heartbeats}
+    volumes:
+      - wakapi-data:/data
+
+  server:
+    build: .
+    image: mnemosyne-server:local
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3110:8000"
+    environment:
+      MNEMOSYNE_WAKAPI_API_KEY: ${MNEMOSYNE_WAKAPI_API_KEY:-}
+    volumes:
+      - mnemosyne-data:/data
+      - ./config/mnemosyne.toml:/config/mnemosyne.toml:ro
+    depends_on:
+      wakapi:
+        condition: service_started
+
+volumes:
+  wakapi-data: {}
+  mnemosyne-data: {}

@@ -1,0 +1,21 @@
+# Dark, after Claude Code's dark theme: warm orange accent on charcoal.
+name = "dark"
+dark = true
+
+[colors]
+background = "#141413"
+surface = "#1a1a19"      # panes
+panel = "#1f1e1d"        # cards
+foreground = "#e8e6dc"
+muted = "#999999"        # secondary text, labels
+faint = "#3d3d3a"        # idle borders, dividers
+accent = "#d77757"       # focus, pane titles, selection border
+selection = "#2e2621"    # selected card background
+warning = "#ffc107"
+error = "#ff6b80"
+success = "#4eba65"
+
+[workspaces]             # card colour per workspace; `fallback` for any other
+personal = "#5fb3a6"
+work = "#b1b9f9"
+fallback = "#999999"

@@ -1,0 +1,8 @@
+.git
+.venv
+.senv
+**/__pycache__
+.pytest_cache
+.ruff_cache
+config/mnemosyne.toml
+backups

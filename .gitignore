@@ -1,0 +1,15 @@
+# s: encrypted secrets
+.senv
+
+# Local, device-specific
+config/mnemosyne.toml
+.venv/
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+backups/
+deploy/local.env
+dist/
+# Personal notes kept out of the public repo
+private/
+.claude/settings.local.json

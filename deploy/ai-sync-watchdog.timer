@@ -1,0 +1,9 @@
+[Unit]
+Description=Check the WakaTime AI sync every hour
+
+[Timer]
+OnBootSec=20min
+OnUnitActiveSec=1h
+
+[Install]
+WantedBy=timers.target

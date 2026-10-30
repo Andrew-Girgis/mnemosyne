@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+# Restore both databases from a snapshot directory made by bin/backup.
+#   bin/restore ~/.local/share/mnemosyne/backups/daily/2026-09-26
+# Stops the stack, keeps the current databases as *.pre-restore, restores, starts again.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+SNAP="$(realpath "${1:?usage: bin/restore <snapshot dir>}")"
+for f in mnemosyne wakapi; do [ -f "$SNAP/$f.sqlite3.gz" ] || { echo "missing $SNAP/$f.sqlite3.gz" >&2; exit 1; }; done
+read -r -p "Replace live Mnemosyne and Wakapi data with $SNAP? [y/N] " ok
+[ "$ok" = y ] || exit 1
+bin/compose stop
+restore() {  # volume, db file name, snapshot name
+  docker run --rm -v "mnemosyne_$1:/dst" -v "$SNAP:/snap:ro" python:3.13-slim sh -c "
+    set -e; cd /dst
+    for s in '' -wal -shm; do [ -e \"$2\$s\" ] && mv \"$2\$s\" \"$2\$s.pre-restore\"; done
+    python -c \"import gzip,shutil; shutil.copyfileobj(gzip.open('/snap/$3.sqlite3.gz'), open('$2','wb'))\"
+    chown --reference=. \"$2\" 2>/dev/null || chown 1000:1000 \"$2\" 2>/dev/null || true
+    chmod 644 \"$2\""
+}
+restore mnemosyne-data mnemosyne.sqlite3 mnemosyne
+restore wakapi-data wakapi.db wakapi
+bin/compose start
+echo "restored from $SNAP; previous files kept as *.pre-restore inside the volumes"
